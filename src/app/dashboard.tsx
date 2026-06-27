@@ -22,7 +22,6 @@ import {
   ToolsIcon,
   PlusIcon,
   MinusIcon,
-  TrashIcon,
   ResetIcon,
 } from '@/components/SvgIcons';
 
@@ -39,23 +38,20 @@ const BUCKET_META: Record<
 
 export default function DashboardScreen() {
   const [buckets, setBuckets] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // Modal confirmation states
-  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [resetModalVisible, setResetModalVisible] = useState(false);
-  const [selectedTx, setSelectedTx] = useState<any>(null);
 
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLaptop = width >= 768;
 
-  // Load data from Supabase
+  // Load data from Supabase (only buckets table needed for dashboard now)
   const fetchData = async () => {
     try {
-      // 1. Fetch buckets
+      // Fetch buckets
       let { data: bucketsData, error: bucketsError } = await supabase
         .from('buckets')
         .select('*');
@@ -107,24 +103,6 @@ export default function DashboardScreen() {
         : [];
 
       setBuckets(sortedBuckets);
-
-      // 2. Fetch expenses (only type = 'expense', newest first)
-      const { data: txData, error: txError } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('type', 'expense')
-        .order('created_at', { ascending: false });
-
-      if (txError) {
-        console.error('Supabase Error - transactions fetch:', {
-          message: txError.message,
-          code: txError.code,
-          details: txError.details,
-          hint: txError.hint,
-        });
-        throw txError;
-      }
-      setTransactions(txData || []);
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
       alert(`Error loading data from Supabase: ${error.message || error.code || 'Unknown error'}`);
@@ -144,63 +122,6 @@ export default function DashboardScreen() {
   const onRefresh = () => {
     setRefreshing(true);
     fetchData();
-  };
-
-  // Delete individual expense transaction
-  const handleDeletePress = (tx: any) => {
-    if (Platform.OS !== 'web') {
-      Vibration.vibrate(10);
-    }
-    setSelectedTx(tx);
-    setDeleteModalVisible(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!selectedTx) return;
-    setDeleteModalVisible(false);
-    setLoading(true);
-
-    try {
-      // 1. Fetch current balance for that bucket
-      const { data: bucketData, error: fetchError } = await supabase
-        .from('buckets')
-        .select('balance')
-        .eq('id', selectedTx.bucket)
-        .single();
-
-      if (fetchError) throw fetchError;
-      
-      const currentBalance = Number(bucketData?.balance || 0);
-      // Cancel the expense -> add the money back to the bucket
-      const newBalance = currentBalance + Number(selectedTx.amount);
-
-      // 2. Update bucket balance
-      const { error: updateError } = await supabase
-        .from('buckets')
-        .update({ balance: newBalance })
-        .eq('id', selectedTx.bucket);
-
-      if (updateError) throw updateError;
-
-      // 3. Delete transaction row
-      const { error: deleteError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', selectedTx.id);
-
-      if (deleteError) throw deleteError;
-
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate([0, 30]);
-      }
-
-      setSelectedTx(null);
-      fetchData();
-    } catch (err: any) {
-      console.error('Error deleting expense:', err);
-      alert(`Failed to delete transaction. Error: ${err.message || err.code}`);
-      setLoading(false);
-    }
   };
 
   // Reset Everything (Balances to 0 and deletes all transaction logs)
@@ -249,19 +170,7 @@ export default function DashboardScreen() {
     }).format(val);
   };
 
-  // Format date representation
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
-  };
-
-  if (loading && !refreshing && !deleteModalVisible && !resetModalVisible) {
+  if (loading && !refreshing && !resetModalVisible) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10B981" />
@@ -310,16 +219,16 @@ export default function DashboardScreen() {
                   color: '#CCCCCC',
                 };
                 const BucketIconComponent = meta.Icon;
-                const bucketExpenses = transactions.filter(t => t.bucket === bucket.id);
 
                 return (
-                  <View
+                  <TouchableOpacity
                     key={bucket.id}
+                    activeOpacity={0.7}
                     style={[styles.bucketCard, { borderLeftColor: meta.color }]}
+                    onPress={() => router.push(`/bucket/${bucket.id}`)}
                   >
-                    {/* Bucket Header Row */}
-                    <View style={styles.bucketHeader}>
-                      <View style={styles.bucketHeaderLeft}>
+                    <View style={styles.bucketContent}>
+                      <View style={styles.bucketLeft}>
                         <BucketIconComponent color={meta.color} size={22} />
                         <Text style={styles.bucketName}>{meta.name}</Text>
                       </View>
@@ -327,40 +236,7 @@ export default function DashboardScreen() {
                         {formatCurrency(bucket.balance)}
                       </Text>
                     </View>
-
-                    {/* Expense List inside Bucket */}
-                    <View style={styles.expenseSection}>
-                      {bucketExpenses.length > 0 ? (
-                        bucketExpenses.map(tx => (
-                          <View key={tx.id} style={styles.expenseRow}>
-                            <View style={styles.expenseRowLeft}>
-                              <Text style={styles.expenseNote} numberOfLines={1}>
-                                {tx.note ? tx.note : 'No note'}
-                              </Text>
-                              <Text style={styles.expenseDate}>
-                                {formatDate(tx.created_at)}
-                              </Text>
-                            </View>
-                            
-                            <View style={styles.expenseRowRight}>
-                              <Text style={styles.expenseAmount}>
-                                -{formatCurrency(tx.amount)}
-                              </Text>
-                              <TouchableOpacity
-                                style={styles.deleteRowButton}
-                                onPress={() => handleDeletePress(tx)}
-                                activeOpacity={0.6}
-                              >
-                                <TrashIcon color="#EF4444" size={16} />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        ))
-                      ) : (
-                        <Text style={styles.noExpensesText}>No expenses yet</Text>
-                      )}
-                    </View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -386,39 +262,6 @@ export default function DashboardScreen() {
               <Text style={styles.actionButtonText}>Log Expense</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Individual Expense Delete Modal */}
-          <Modal
-            visible={deleteModalVisible}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setDeleteModalVisible(false)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalCard}>
-                <Text style={styles.modalTitle}>Delete this expense?</Text>
-                <Text style={styles.modalDescription}>
-                  This transaction will be removed and the amount will be added back to the bucket balance.
-                </Text>
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalCancelButton]}
-                    onPress={() => setDeleteModalVisible(false)}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.modalCancelText}>Cancel</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.modalConfirmButton]}
-                    onPress={handleDeleteConfirm}
-                    activeOpacity={0.7}
-                  >
-                    <Text style={styles.modalConfirmText}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-          </Modal>
 
           {/* Reset All Balances Modal */}
           <Modal
@@ -557,25 +400,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#16161A',
     borderRadius: 14,
     borderLeftWidth: 5,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 18,
     borderWidth: 1,
-    borderTopColor: '#24242B',
-    borderRightColor: '#24242B',
-    borderBottomColor: '#24242B',
+    borderColor: '#24242B',
   },
-  bucketHeader: {
+  bucketContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#24242B',
-    paddingBottom: 12,
-    marginBottom: 12,
   },
-  bucketHeaderLeft: {
+  bucketLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 12,
   },
   bucketName: {
     fontSize: 17,
@@ -586,53 +424,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
     color: '#FFFFFF',
-  },
-  expenseSection: {
-    gap: 10,
-  },
-  expenseRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-  },
-  expenseRowLeft: {
-    flex: 1,
-    paddingRight: 16,
-  },
-  expenseNote: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    fontWeight: '500',
-    marginBottom: 2,
-  },
-  expenseDate: {
-    fontSize: 12,
-    color: '#636366',
-  },
-  expenseRowRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  expenseAmount: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#EF4444',
-  },
-  deleteRowButton: {
-    width: 44, // Touch target met (padding covers it)
-    height: 44,
-    borderRadius: 8,
-    backgroundColor: '#1F1517',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  noExpensesText: {
-    fontSize: 13,
-    color: '#636366',
-    fontStyle: 'italic',
-    paddingVertical: 4,
   },
   bottomBar: {
     position: 'absolute',

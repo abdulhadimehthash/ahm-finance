@@ -13,7 +13,7 @@ import {
   Vibration,
   useWindowDimensions,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import {
   SavingIcon,
@@ -32,8 +32,9 @@ const BUCKETS = [
 ];
 
 export default function LogExpenseScreen() {
+  const { bucket: preselectedBucket } = useLocalSearchParams<{ bucket: string }>();
   const [amount, setAmount] = useState('');
-  const [selectedBucket, setSelectedBucket] = useState('');
+  const [selectedBucket, setSelectedBucket] = useState(preselectedBucket || '');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
