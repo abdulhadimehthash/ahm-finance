@@ -9,6 +9,7 @@ import {
   RefreshControl,
   SafeAreaView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +28,8 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isLaptop = width >= 768;
 
   // Load data from Supabase
   const fetchData = async () => {
@@ -36,7 +39,15 @@ export default function DashboardScreen() {
         .from('buckets')
         .select('*');
 
-      if (bucketsError) throw bucketsError;
+      if (bucketsError) {
+        console.error('Supabase Error - buckets fetch:', {
+          message: bucketsError.message,
+          code: bucketsError.code,
+          details: bucketsError.details,
+          hint: bucketsError.hint,
+        });
+        throw bucketsError;
+      }
 
       // Self-initialize default buckets in Supabase if empty (robust fallback)
       if (!bucketsData || bucketsData.length === 0) {
@@ -50,7 +61,15 @@ export default function DashboardScreen() {
           .from('buckets')
           .insert(defaultBuckets);
 
-        if (insertError) throw insertError;
+        if (insertError) {
+          console.error('Supabase Error - buckets seed:', {
+            message: insertError.message,
+            code: insertError.code,
+            details: insertError.details,
+            hint: insertError.hint,
+          });
+          throw insertError;
+        }
 
         // Re-fetch
         const { data: refetchedData, error: refetchError } = await supabase
@@ -75,10 +94,19 @@ export default function DashboardScreen() {
         .eq('type', 'expense')
         .order('created_at', { ascending: false });
 
-      if (txError) throw txError;
+      if (txError) {
+        console.error('Supabase Error - transactions fetch:', {
+          message: txError.message,
+          code: txError.code,
+          details: txError.details,
+          hint: txError.hint,
+        });
+        throw txError;
+      }
       setTransactions(txData || []);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
+      alert(`Error loading data from Supabase: ${error.message || error.code || 'Unknown error'}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -130,104 +158,126 @@ export default function DashboardScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />
-        }
-      >
-        <Text style={styles.headerTitle}>My Finance</Text>
+    <View style={styles.outerContainer}>
+      <View style={[styles.appContainer, isLaptop && styles.laptopContainer]}>
+        <SafeAreaView style={styles.safeArea}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />
+            }
+          >
+            <Text style={styles.headerTitle}>My Finance</Text>
 
-        {/* Consolidate Balance Card */}
-        <View style={styles.totalBalanceCard}>
-          <Text style={styles.totalBalanceLabel}>TOTAL BALANCE</Text>
-          <Text style={styles.totalBalanceValue}>
-            {formatCurrency(totalBalance)}
-          </Text>
-        </View>
+            {/* Consolidate Balance Card */}
+            <View style={styles.totalBalanceCard}>
+              <Text style={styles.totalBalanceLabel}>TOTAL BALANCE</Text>
+              <Text style={styles.totalBalanceValue}>
+                {formatCurrency(totalBalance)}
+              </Text>
+            </View>
 
-        {/* Bucket Stack List */}
-        <View style={styles.bucketContainer}>
-          {buckets.map(bucket => {
-            const meta = BUCKET_META[bucket.id] || {
-              name: bucket.name,
-              icon: '📁',
-              color: '#CCCCCC',
-            };
-            const bucketExpenses = transactions.filter(t => t.bucket === bucket.id);
+            {/* Bucket Stack List */}
+            <View style={styles.bucketContainer}>
+              {buckets.map(bucket => {
+                const meta = BUCKET_META[bucket.id] || {
+                  name: bucket.name,
+                  icon: '📁',
+                  color: '#CCCCCC',
+                };
+                const bucketExpenses = transactions.filter(t => t.bucket === bucket.id);
 
-            return (
-              <View
-                key={bucket.id}
-                style={[styles.bucketCard, { borderLeftColor: meta.color }]}
-              >
-                {/* Bucket Header Row */}
-                <View style={styles.bucketHeader}>
-                  <View style={styles.bucketHeaderLeft}>
-                    <Text style={styles.bucketIcon}>{meta.icon}</Text>
-                    <Text style={styles.bucketName}>{meta.name}</Text>
-                  </View>
-                  <Text style={styles.bucketBalance}>
-                    {formatCurrency(bucket.balance)}
-                  </Text>
-                </View>
-
-                {/* Expense List inside Bucket */}
-                <View style={styles.expenseSection}>
-                  {bucketExpenses.length > 0 ? (
-                    bucketExpenses.map(tx => (
-                      <View key={tx.id} style={styles.expenseRow}>
-                        <View style={styles.expenseRowLeft}>
-                          <Text style={styles.expenseNote} numberOfLines={1}>
-                            {tx.note ? tx.note : 'No note'}
-                          </Text>
-                          <Text style={styles.expenseDate}>
-                            {formatDate(tx.created_at)}
-                          </Text>
-                        </View>
-                        <Text style={styles.expenseAmount}>
-                          -{formatCurrency(tx.amount)}
-                        </Text>
+                return (
+                  <View
+                    key={bucket.id}
+                    style={[styles.bucketCard, { borderLeftColor: meta.color }]}
+                  >
+                    {/* Bucket Header Row */}
+                    <View style={styles.bucketHeader}>
+                      <View style={styles.bucketHeaderLeft}>
+                        <Text style={styles.bucketIcon}>{meta.icon}</Text>
+                        <Text style={styles.bucketName}>{meta.name}</Text>
                       </View>
-                    ))
-                  ) : (
-                    <Text style={styles.noExpensesText}>No expenses yet</Text>
-                  )}
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </ScrollView>
+                      <Text style={styles.bucketBalance}>
+                        {formatCurrency(bucket.balance)}
+                      </Text>
+                    </View>
 
-      {/* Sticky Bottom Actions Bar */}
-      <View style={styles.bottomBar}>
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={[styles.actionButton, styles.incomeButton]}
-          onPress={() => router.push('/log-income')}
-        >
-          <Text style={styles.actionButtonText}>Log Income</Text>
-        </TouchableOpacity>
+                    {/* Expense List inside Bucket */}
+                    <View style={styles.expenseSection}>
+                      {bucketExpenses.length > 0 ? (
+                        bucketExpenses.map(tx => (
+                          <View key={tx.id} style={styles.expenseRow}>
+                            <View style={styles.expenseRowLeft}>
+                              <Text style={styles.expenseNote} numberOfLines={1}>
+                                {tx.note ? tx.note : 'No note'}
+                              </Text>
+                              <Text style={styles.expenseDate}>
+                                {formatDate(tx.created_at)}
+                              </Text>
+                            </View>
+                            <Text style={styles.expenseAmount}>
+                              -{formatCurrency(tx.amount)}
+                            </Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.noExpensesText}>No expenses yet</Text>
+                      )}
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </ScrollView>
 
-        <TouchableOpacity
-          activeOpacity={0.8}
-          style={[styles.actionButton, styles.expenseButton]}
-          onPress={() => router.push('/log-expense')}
-        >
-          <Text style={styles.actionButtonText}>Log Expense</Text>
-        </TouchableOpacity>
+          {/* Sticky Bottom Actions Bar */}
+          <View style={styles.bottomBar}>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.actionButton, styles.incomeButton]}
+              onPress={() => router.push('/log-income')}
+            >
+              <Text style={styles.actionButtonText}>Log Income</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[styles.actionButton, styles.expenseButton]}
+              onPress={() => router.push('/log-expense')}
+            >
+              <Text style={styles.actionButtonText}>Log Expense</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerContainer: {
+    flex: 1,
+    backgroundColor: '#050507', // Dark side background for laptop view
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  appContainer: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#0C0C0E',
+  },
+  laptopContainer: {
+    maxWidth: 480,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#24242B',
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: '#0C0C0E',
+    position: 'relative', // Constrains absolute bottom bar inside
   },
   loadingContainer: {
     flex: 1,
@@ -241,7 +291,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 110, // Padding to prevent sticky button overlap
+    paddingBottom: 110, // Prevents bottom action bar overlap
   },
   headerTitle: {
     fontSize: 24,
@@ -363,7 +413,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#24242B',
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20, // Handle safe area for iPhone
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20, // iPhone spacing
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -371,7 +421,7 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    height: 52,
+    height: 52, // minimum 48px target met
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -388,10 +438,10 @@ const styles = StyleSheet.create({
     }),
   },
   incomeButton: {
-    backgroundColor: '#10B981', // Emerald green
+    backgroundColor: '#10B981',
   },
   expenseButton: {
-    backgroundColor: '#EF4444', // Slate red
+    backgroundColor: '#EF4444',
   },
   actionButtonText: {
     fontSize: 16,
