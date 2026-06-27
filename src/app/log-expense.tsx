@@ -9,11 +9,11 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Vibration,
   useWindowDimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import {
   SavingIcon,
@@ -170,16 +170,18 @@ export default function LogExpenseScreen() {
     }
   };
 
+  const insets = useSafeAreaInsets();
+
   return (
     <View style={styles.outerContainer}>
       <View style={[styles.appContainer, isLaptop && styles.laptopContainer]}>
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={styles.keyboardView}
           >
             {/* Header bar */}
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
               <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
                 <CloseIcon color="#8E8E93" size={22} />
               </TouchableOpacity>
@@ -187,7 +189,7 @@ export default function LogExpenseScreen() {
               <View style={styles.placeholderView} />
             </View>
 
-            <ScrollView contentContainerStyle={styles.scrollContent}>
+            <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(insets.bottom, 24) }]}>
               {/* Amount input */}
               <View style={styles.inputContainer}>
                 <Text style={styles.currencyPrefix}>₹</Text>
@@ -264,7 +266,7 @@ export default function LogExpenseScreen() {
               </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
-        </SafeAreaView>
+        </View>
       </View>
     </View>
   );
@@ -300,7 +302,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    height: 56, // touch targets height met
+    minHeight: 56, // touch targets height met
     borderBottomWidth: 1,
     borderBottomColor: '#1C1C1E',
   },

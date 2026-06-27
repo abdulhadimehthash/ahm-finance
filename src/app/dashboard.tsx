@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   Platform,
   useWindowDimensions,
   Modal,
   Vibration,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import {
   SavingIcon,
@@ -170,6 +170,8 @@ export default function DashboardScreen() {
     }).format(val);
   };
 
+  const insets = useSafeAreaInsets();
+
   if (loading && !refreshing && !resetModalVisible) {
     return (
       <View style={styles.loadingContainer}>
@@ -181,9 +183,9 @@ export default function DashboardScreen() {
   return (
     <View style={styles.outerContainer}>
       <View style={[styles.appContainer, isLaptop && styles.laptopContainer]}>
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
           {/* Header Row with reset button on the left */}
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
             <TouchableOpacity
               style={styles.resetHeaderButton}
               onPress={() => setResetModalVisible(true)}
@@ -243,7 +245,7 @@ export default function DashboardScreen() {
           </ScrollView>
 
           {/* Sticky Bottom Actions Bar */}
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.actionButton, styles.incomeButton]}
@@ -295,7 +297,7 @@ export default function DashboardScreen() {
               </View>
             </View>
           </Modal>
-        </SafeAreaView>
+        </View>
       </View>
     </View>
   );
@@ -335,7 +337,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    height: 56,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: '#1C1C1E',
   },
@@ -434,7 +436,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#24242B',
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',

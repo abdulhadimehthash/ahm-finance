@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   Platform,
   useWindowDimensions,
   Modal,
   Vibration,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import {
   SavingIcon,
@@ -186,6 +186,8 @@ export default function BucketDetailScreen() {
     });
   };
 
+  const insets = useSafeAreaInsets();
+
   if (loading && !refreshing && !deleteModalVisible) {
     return (
       <View style={styles.loadingContainer}>
@@ -197,9 +199,9 @@ export default function BucketDetailScreen() {
   return (
     <View style={styles.outerContainer}>
       <View style={[styles.appContainer, isLaptop && styles.laptopContainer]}>
-        <SafeAreaView style={styles.safeArea}>
+        <View style={styles.safeArea}>
           {/* Header Row */}
-          <View style={styles.header}>
+          <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) }]}>
             <TouchableOpacity
               style={styles.backHeaderButton}
               onPress={() => router.replace('/dashboard')}
@@ -269,7 +271,7 @@ export default function BucketDetailScreen() {
           </ScrollView>
 
           {/* Sticky Bottom Actions Bar */}
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.actionButton, { backgroundColor: accentColor }]}
@@ -312,7 +314,7 @@ export default function BucketDetailScreen() {
               </View>
             </View>
           </Modal>
-        </SafeAreaView>
+        </View>
       </View>
     </View>
   );
@@ -352,7 +354,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    height: 56,
+    minHeight: 56,
     borderBottomWidth: 1,
     borderBottomColor: '#1C1C1E',
   },
@@ -484,7 +486,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#24242B',
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'center',
