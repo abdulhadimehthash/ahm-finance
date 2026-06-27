@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -20,12 +20,6 @@ export default function PinLockScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLaptop = width >= 768;
-
-  // Track latest pin state in ref for physical keyboard event listeners
-  const pinRef = useRef(pin);
-  useEffect(() => {
-    pinRef.current = pin;
-  }, [pin]);
 
   const checkPin = useCallback((enteredPin: string) => {
     if (enteredPin.length === 6) {
@@ -49,54 +43,65 @@ export default function PinLockScreen() {
     }
   }, [router]);
 
-  const handlePressNumber = (num: string) => {
-    if (pin.length < 6) {
-      const newPin = pin + num;
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate(10);
-      }
-      setPin(newPin);
-      checkPin(newPin);
+  // Auto-focus window on load and bind keyboard events
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      window.focus();
     }
-  };
+  }, []);
 
-  const handlePressDelete = () => {
-    if (pin.length > 0) {
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate(10);
+  const handlePressNumber = useCallback((num: string) => {
+    setPin(prev => {
+      if (prev.length < 6) {
+        const newPin = prev + num;
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate(10);
+        }
+        if (newPin.length === 6) {
+          setTimeout(() => {
+            checkPin(newPin);
+          }, 50);
+        }
+        return newPin;
       }
-      setPin(prev => prev.slice(0, -1));
-    }
-  };
+      return prev;
+    });
+  }, [checkPin]);
 
-  const handlePressClear = () => {
-    if (pin.length > 0) {
-      if (Platform.OS !== 'web') {
-        Vibration.vibrate(15);
+  const handlePressDelete = useCallback(() => {
+    setPin(prev => {
+      if (prev.length > 0) {
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate(10);
+        }
+        return prev.slice(0, -1);
       }
-      setPin('');
-    }
-  };
+      return prev;
+    });
+  }, []);
+
+  const handlePressClear = useCallback(() => {
+    setPin(prev => {
+      if (prev.length > 0) {
+        if (Platform.OS !== 'web') {
+          Vibration.vibrate(15);
+        }
+        return '';
+      }
+      return prev;
+    });
+  }, []);
 
   // Add physical keyboard listener for web/laptop
   useEffect(() => {
     if (Platform.OS === 'web') {
       const handleKeyDown = (e: KeyboardEvent) => {
-        const currentPin = pinRef.current;
         if (/^[0-9]$/.test(e.key)) {
-          if (currentPin.length < 6) {
-            const newPin = currentPin + e.key;
-            setPin(newPin);
-            checkPin(newPin);
-          }
+          handlePressNumber(e.key);
         } else if (e.key === 'Backspace') {
-          if (currentPin.length > 0) {
-            setPin(prev => prev.slice(0, -1));
-          }
+          handlePressDelete();
         } else if (e.key === 'c' || e.key === 'C' || e.key === 'Escape') {
-          if (currentPin.length > 0) {
-            setPin('');
-          }
+          handlePressClear();
         }
       };
 
@@ -105,7 +110,7 @@ export default function PinLockScreen() {
         window.removeEventListener('keydown', handleKeyDown);
       };
     }
-  }, [checkPin]);
+  }, [handlePressNumber, handlePressDelete, handlePressClear]);
 
   return (
     <View style={styles.outerContainer}>

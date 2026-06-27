@@ -156,7 +156,7 @@ export default function LogIncomeScreen() {
       }
       
       // Go back to dashboard on completion
-      router.back();
+      router.replace('/dashboard');
     } catch (err: any) {
       console.error('Error logging income:', err);
       alert(`Failed to log income. Error: ${err.message || err.code || 'Unknown error'}`);
@@ -174,7 +174,7 @@ export default function LogIncomeScreen() {
             style={styles.keyboardView}
           >
             <View style={styles.header}>
-              <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+              <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
                 <Text style={styles.closeButtonText}>Cancel</Text>
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Log Income</Text>

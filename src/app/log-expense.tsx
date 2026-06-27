@@ -153,7 +153,7 @@ export default function LogExpenseScreen() {
       }
 
       // Go back to dashboard on completion
-      router.back();
+      router.replace('/dashboard');
     } catch (err: any) {
       console.error('Error logging expense:', err);
       alert(`Failed to log expense. Error: ${err.message || err.code || 'Unknown error'}`);
@@ -172,7 +172,7 @@ export default function LogExpenseScreen() {
           >
             {/* Header bar */}
             <View style={styles.header}>
-              <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
+              <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
                 <Text style={styles.closeButtonText}>Cancel</Text>
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Log Expense</Text>
