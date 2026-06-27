@@ -15,13 +15,20 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import {
+  SavingIcon,
+  FoodTravelIcon,
+  FunIcon,
+  ToolsIcon,
+  CloseIcon,
+} from '@/components/SvgIcons';
 
-// Split percentages defined in specification
+// Split percentages and custom SVG icons defined in specification
 const SPLITS = {
-  saving: { name: 'Saving', percent: 0.40, color: '#10B981', icon: '💰' },
-  food_travel: { name: 'Food & Travel', percent: 0.35, color: '#F59E0B', icon: '🍕' },
-  fun: { name: 'Fun', percent: 0.15, color: '#8B5CF6', icon: '🥳' },
-  tools: { name: 'Tools', percent: 0.10, color: '#3B82F6', icon: '🛠' },
+  saving: { name: 'Saving', percent: 0.40, color: '#10B981', Icon: SavingIcon },
+  food_travel: { name: 'Food & Travel', percent: 0.35, color: '#F59E0B', Icon: FoodTravelIcon },
+  fun: { name: 'Fun', percent: 0.15, color: '#8B5CF6', Icon: FunIcon },
+  tools: { name: 'Tools', percent: 0.10, color: '#3B82F6', Icon: ToolsIcon },
 };
 
 export default function LogIncomeScreen() {
@@ -175,7 +182,7 @@ export default function LogIncomeScreen() {
           >
             <View style={styles.header}>
               <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
-                <Text style={styles.closeButtonText}>Cancel</Text>
+                <CloseIcon color="#8E8E93" size={22} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Log Income</Text>
               <View style={styles.placeholderView} />
@@ -202,7 +209,7 @@ export default function LogIncomeScreen() {
                 {/* Saving */}
                 <View style={styles.splitRow}>
                   <View style={styles.splitLeft}>
-                    <Text style={styles.splitIcon}>{SPLITS.saving.icon}</Text>
+                    <SavingIcon color={SPLITS.saving.color} size={20} />
                     <Text style={styles.splitName}>{SPLITS.saving.name}</Text>
                     <Text style={styles.splitPercent}>{SPLITS.saving.percent * 100}%</Text>
                   </View>
@@ -214,7 +221,7 @@ export default function LogIncomeScreen() {
                 {/* Food & Travel */}
                 <View style={styles.splitRow}>
                   <View style={styles.splitLeft}>
-                    <Text style={styles.splitIcon}>{SPLITS.food_travel.icon}</Text>
+                    <FoodTravelIcon color={SPLITS.food_travel.color} size={20} />
                     <Text style={styles.splitName}>{SPLITS.food_travel.name}</Text>
                     <Text style={styles.splitPercent}>{SPLITS.food_travel.percent * 100}%</Text>
                   </View>
@@ -226,7 +233,7 @@ export default function LogIncomeScreen() {
                 {/* Fun */}
                 <View style={styles.splitRow}>
                   <View style={styles.splitLeft}>
-                    <Text style={styles.splitIcon}>{SPLITS.fun.icon}</Text>
+                    <FunIcon color={SPLITS.fun.color} size={20} />
                     <Text style={styles.splitName}>{SPLITS.fun.name}</Text>
                     <Text style={styles.splitPercent}>{SPLITS.fun.percent * 100}%</Text>
                   </View>
@@ -238,7 +245,7 @@ export default function LogIncomeScreen() {
                 {/* Tools */}
                 <View style={[styles.splitRow, styles.lastSplitRow]}>
                   <View style={styles.splitLeft}>
-                    <Text style={styles.splitIcon}>{SPLITS.tools.icon}</Text>
+                    <ToolsIcon color={SPLITS.tools.color} size={20} />
                     <Text style={styles.splitName}>{SPLITS.tools.name}</Text>
                     <Text style={styles.splitPercent}>{SPLITS.tools.percent * 100}%</Text>
                   </View>
@@ -303,14 +310,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1C1C1E',
   },
   closeButton: {
-    paddingVertical: 12, // ensures vertical touch height >= 48px
-    paddingHorizontal: 8,
+    width: 44, // Touch target met
+    height: 44,
     justifyContent: 'center',
-  },
-  closeButtonText: {
-    color: '#8E8E93',
-    fontSize: 16,
-    fontWeight: '500',
+    alignItems: 'center',
   },
   headerTitle: {
     color: '#FFFFFF',
@@ -318,7 +321,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   placeholderView: {
-    width: 50,
+    width: 44,
   },
   scrollContent: {
     padding: 24,
@@ -371,16 +374,12 @@ const styles = StyleSheet.create({
   splitLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  splitIcon: {
-    fontSize: 18,
-    marginRight: 8,
+    gap: 10,
   },
   splitName: {
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
-    marginRight: 8,
   },
   splitPercent: {
     fontSize: 12,

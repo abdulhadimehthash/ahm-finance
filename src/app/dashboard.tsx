@@ -10,16 +10,31 @@ import {
   SafeAreaView,
   Platform,
   useWindowDimensions,
+  Modal,
+  Vibration,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import {
+  SavingIcon,
+  FoodTravelIcon,
+  FunIcon,
+  ToolsIcon,
+  PlusIcon,
+  MinusIcon,
+  TrashIcon,
+  ResetIcon,
+} from '@/components/SvgIcons';
 
-// Map bucket IDs to metadata (icon, border color, display name)
-const BUCKET_META: Record<string, { name: string; icon: string; color: string }> = {
-  saving: { name: 'Saving', icon: '💰', color: '#10B981' }, // Green
-  food_travel: { name: 'Food & Travel', icon: '🍕', color: '#F59E0B' }, // Orange
-  fun: { name: 'Fun', icon: '🥳', color: '#8B5CF6' }, // Purple
-  tools: { name: 'Tools', icon: '🛠️', color: '#3B82F6' }, // Blue
+// Map bucket IDs to metadata (display name, SVG icon component, border color)
+const BUCKET_META: Record<
+  string,
+  { name: string; Icon: React.ComponentType<{ color: string; size: number }>; color: string }
+> = {
+  saving: { name: 'Saving', Icon: SavingIcon, color: '#10B981' }, // Green
+  food_travel: { name: 'Food & Travel', Icon: FoodTravelIcon, color: '#F59E0B' }, // Orange
+  fun: { name: 'Fun', Icon: FunIcon, color: '#8B5CF6' }, // Purple
+  tools: { name: 'Tools', Icon: ToolsIcon, color: '#3B82F6' }, // Blue
 };
 
 export default function DashboardScreen() {
@@ -27,6 +42,12 @@ export default function DashboardScreen() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Modal confirmation states
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [resetModalVisible, setResetModalVisible] = useState(false);
+  const [selectedTx, setSelectedTx] = useState<any>(null);
+
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isLaptop = width >= 768;
@@ -125,6 +146,97 @@ export default function DashboardScreen() {
     fetchData();
   };
 
+  // Delete individual expense transaction
+  const handleDeletePress = (tx: any) => {
+    if (Platform.OS !== 'web') {
+      Vibration.vibrate(10);
+    }
+    setSelectedTx(tx);
+    setDeleteModalVisible(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedTx) return;
+    setDeleteModalVisible(false);
+    setLoading(true);
+
+    try {
+      // 1. Fetch current balance for that bucket
+      const { data: bucketData, error: fetchError } = await supabase
+        .from('buckets')
+        .select('balance')
+        .eq('id', selectedTx.bucket)
+        .single();
+
+      if (fetchError) throw fetchError;
+      
+      const currentBalance = Number(bucketData?.balance || 0);
+      // Cancel the expense -> add the money back to the bucket
+      const newBalance = currentBalance + Number(selectedTx.amount);
+
+      // 2. Update bucket balance
+      const { error: updateError } = await supabase
+        .from('buckets')
+        .update({ balance: newBalance })
+        .eq('id', selectedTx.bucket);
+
+      if (updateError) throw updateError;
+
+      // 3. Delete transaction row
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', selectedTx.id);
+
+      if (deleteError) throw deleteError;
+
+      if (Platform.OS !== 'web') {
+        Vibration.vibrate([0, 30]);
+      }
+
+      setSelectedTx(null);
+      fetchData();
+    } catch (err: any) {
+      console.error('Error deleting expense:', err);
+      alert(`Failed to delete transaction. Error: ${err.message || err.code}`);
+      setLoading(false);
+    }
+  };
+
+  // Reset Everything (Balances to 0 and deletes all transaction logs)
+  const handleResetConfirm = async () => {
+    setResetModalVisible(false);
+    setLoading(true);
+
+    try {
+      // 1. Delete all rows in transactions table
+      const { error: txDeleteError } = await supabase
+        .from('transactions')
+        .delete()
+        .neq('type', 'invalid'); // matches all types ('income' or 'expense')
+
+      if (txDeleteError) throw txDeleteError;
+
+      // 2. Reset all bucket balances to 0
+      const { error: bucketResetError } = await supabase
+        .from('buckets')
+        .update({ balance: 0 })
+        .neq('id', 'invalid'); // matches all bucket IDs
+
+      if (bucketResetError) throw bucketResetError;
+
+      if (Platform.OS !== 'web') {
+        Vibration.vibrate([0, 80]);
+      }
+
+      fetchData();
+    } catch (err: any) {
+      console.error('Error resetting database:', err);
+      alert(`Failed to reset everything. Error: ${err.message || err.code}`);
+      setLoading(false);
+    }
+  };
+
   // Compute total balance
   const totalBalance = buckets.reduce((sum, b) => sum + Number(b.balance || 0), 0);
 
@@ -149,7 +261,7 @@ export default function DashboardScreen() {
     });
   };
 
-  if (loading && !refreshing) {
+  if (loading && !refreshing && !deleteModalVisible && !resetModalVisible) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10B981" />
@@ -161,6 +273,19 @@ export default function DashboardScreen() {
     <View style={styles.outerContainer}>
       <View style={[styles.appContainer, isLaptop && styles.laptopContainer]}>
         <SafeAreaView style={styles.safeArea}>
+          {/* Header Row with reset button on the left */}
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.resetHeaderButton}
+              onPress={() => setResetModalVisible(true)}
+              activeOpacity={0.6}
+            >
+              <ResetIcon color="#EF4444" size={22} />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>My Finance</Text>
+            <View style={styles.headerPlaceholder} />
+          </View>
+
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
@@ -168,8 +293,6 @@ export default function DashboardScreen() {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#10B981" />
             }
           >
-            <Text style={styles.headerTitle}>My Finance</Text>
-
             {/* Consolidate Balance Card */}
             <View style={styles.totalBalanceCard}>
               <Text style={styles.totalBalanceLabel}>TOTAL BALANCE</Text>
@@ -183,9 +306,10 @@ export default function DashboardScreen() {
               {buckets.map(bucket => {
                 const meta = BUCKET_META[bucket.id] || {
                   name: bucket.name,
-                  icon: '📁',
+                  Icon: SavingIcon,
                   color: '#CCCCCC',
                 };
+                const BucketIconComponent = meta.Icon;
                 const bucketExpenses = transactions.filter(t => t.bucket === bucket.id);
 
                 return (
@@ -196,7 +320,7 @@ export default function DashboardScreen() {
                     {/* Bucket Header Row */}
                     <View style={styles.bucketHeader}>
                       <View style={styles.bucketHeaderLeft}>
-                        <Text style={styles.bucketIcon}>{meta.icon}</Text>
+                        <BucketIconComponent color={meta.color} size={22} />
                         <Text style={styles.bucketName}>{meta.name}</Text>
                       </View>
                       <Text style={styles.bucketBalance}>
@@ -217,9 +341,19 @@ export default function DashboardScreen() {
                                 {formatDate(tx.created_at)}
                               </Text>
                             </View>
-                            <Text style={styles.expenseAmount}>
-                              -{formatCurrency(tx.amount)}
-                            </Text>
+                            
+                            <View style={styles.expenseRowRight}>
+                              <Text style={styles.expenseAmount}>
+                                -{formatCurrency(tx.amount)}
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.deleteRowButton}
+                                onPress={() => handleDeletePress(tx)}
+                                activeOpacity={0.6}
+                              >
+                                <TrashIcon color="#EF4444" size={16} />
+                              </TouchableOpacity>
+                            </View>
                           </View>
                         ))
                       ) : (
@@ -239,6 +373,7 @@ export default function DashboardScreen() {
               style={[styles.actionButton, styles.incomeButton]}
               onPress={() => router.push('/log-income')}
             >
+              <PlusIcon color="#FFFFFF" size={18} />
               <Text style={styles.actionButtonText}>Log Income</Text>
             </TouchableOpacity>
 
@@ -247,9 +382,76 @@ export default function DashboardScreen() {
               style={[styles.actionButton, styles.expenseButton]}
               onPress={() => router.push('/log-expense')}
             >
+              <MinusIcon color="#FFFFFF" size={18} />
               <Text style={styles.actionButtonText}>Log Expense</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Individual Expense Delete Modal */}
+          <Modal
+            visible={deleteModalVisible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setDeleteModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Delete this expense?</Text>
+                <Text style={styles.modalDescription}>
+                  This transaction will be removed and the amount will be added back to the bucket balance.
+                </Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalCancelButton]}
+                    onPress={() => setDeleteModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalConfirmButton]}
+                    onPress={handleDeleteConfirm}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalConfirmText}>Delete</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Reset All Balances Modal */}
+          <Modal
+            visible={resetModalVisible}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setResetModalVisible(false)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <Text style={styles.modalTitle}>Reset everything?</Text>
+                <Text style={styles.modalDescription}>
+                  All transactions and balances will be cleared. This cannot be undone.
+                </Text>
+                <View style={styles.modalButtons}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalCancelButton]}
+                    onPress={() => setResetModalVisible(false)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalCancelText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.modalConfirmButton]}
+                    onPress={handleResetConfirm}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={styles.modalConfirmText}>Reset Everything</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </SafeAreaView>
       </View>
     </View>
@@ -285,6 +487,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    height: 56,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1C1C1E',
+  },
+  resetHeaderButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  headerPlaceholder: {
+    width: 44,
+  },
   scrollView: {
     flex: 1,
   },
@@ -292,13 +519,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 110, // Prevents bottom action bar overlap
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 20,
-    letterSpacing: 0.5,
   },
   totalBalanceCard: {
     backgroundColor: '#16161A',
@@ -355,10 +575,7 @@ const styles = StyleSheet.create({
   bucketHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-  },
-  bucketIcon: {
-    fontSize: 20,
+    gap: 10,
   },
   bucketName: {
     fontSize: 17,
@@ -393,10 +610,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#636366',
   },
+  expenseRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   expenseAmount: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#EF4444', // Red for expense
+    color: '#EF4444',
+  },
+  deleteRowButton: {
+    width: 44, // Touch target met (padding covers it)
+    height: 44,
+    borderRadius: 8,
+    backgroundColor: '#1F1517',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   noExpensesText: {
     fontSize: 13,
@@ -413,7 +643,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#24242B',
     paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 20, // iPhone spacing
+    paddingBottom: Platform.OS === 'ios' ? 34 : 20,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -421,8 +651,10 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
-    height: 52, // minimum 48px target met
+    height: 52,
     borderRadius: 12,
+    flexDirection: 'row',
+    gap: 8,
     justifyContent: 'center',
     alignItems: 'center',
     ...Platform.select({
@@ -447,5 +679,70 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(5, 5, 7, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    backgroundColor: '#16161A',
+    borderColor: '#24242B',
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 380,
+    alignItems: 'center',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalDescription: {
+    fontSize: 14,
+    color: '#8E8E93',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: '#2C2C2E',
+  },
+  modalCancelText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  modalConfirmButton: {
+    backgroundColor: '#EF4444',
+  },
+  modalConfirmText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

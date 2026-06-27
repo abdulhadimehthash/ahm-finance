@@ -15,13 +15,20 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { supabase } from '@/lib/supabase';
+import {
+  SavingIcon,
+  FoodTravelIcon,
+  FunIcon,
+  ToolsIcon,
+  CloseIcon,
+} from '@/components/SvgIcons';
 
-// Buckets list metadata
+// Buckets list metadata with custom SVG components
 const BUCKETS = [
-  { id: 'saving', name: 'Saving', color: '#10B981', icon: '💰' },
-  { id: 'food_travel', name: 'Food & Travel', color: '#F59E0B', icon: '🍕' },
-  { id: 'fun', name: 'Fun', color: '#8B5CF6', icon: '🥳' },
-  { id: 'tools', name: 'Tools', color: '#3B82F6', icon: '🛠' },
+  { id: 'saving', name: 'Saving', color: '#10B981', Icon: SavingIcon },
+  { id: 'food_travel', name: 'Food & Travel', color: '#F59E0B', Icon: FoodTravelIcon },
+  { id: 'fun', name: 'Fun', color: '#8B5CF6', Icon: FunIcon },
+  { id: 'tools', name: 'Tools', color: '#3B82F6', Icon: ToolsIcon },
 ];
 
 export default function LogExpenseScreen() {
@@ -173,7 +180,7 @@ export default function LogExpenseScreen() {
             {/* Header bar */}
             <View style={styles.header}>
               <TouchableOpacity style={styles.closeButton} onPress={() => router.replace('/dashboard')}>
-                <Text style={styles.closeButtonText}>Cancel</Text>
+                <CloseIcon color="#8E8E93" size={22} />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Log Expense</Text>
               <View style={styles.placeholderView} />
@@ -200,6 +207,7 @@ export default function LogExpenseScreen() {
               <View style={styles.grid}>
                 {BUCKETS.map(bucket => {
                   const isSelected = selectedBucket === bucket.id;
+                  const BucketIconComponent = bucket.Icon;
                   return (
                     <TouchableOpacity
                       key={bucket.id}
@@ -218,7 +226,7 @@ export default function LogExpenseScreen() {
                       }}
                       disabled={loading}
                     >
-                      <Text style={styles.bucketIcon}>{bucket.icon}</Text>
+                      <BucketIconComponent color={isSelected ? bucket.color : '#8E8E93'} size={20} />
                       <Text style={styles.bucketName}>{bucket.name}</Text>
                     </TouchableOpacity>
                   );
@@ -296,14 +304,10 @@ const styles = StyleSheet.create({
     borderBottomColor: '#1C1C1E',
   },
   closeButton: {
-    paddingVertical: 12, // ensures vertical touch height >= 48px
-    paddingHorizontal: 8,
+    width: 44, // Touch target met
+    height: 44,
     justifyContent: 'center',
-  },
-  closeButtonText: {
-    color: '#8E8E93',
-    fontSize: 16,
-    fontWeight: '500',
+    alignItems: 'center',
   },
   headerTitle: {
     color: '#FFFFFF',
@@ -311,7 +315,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   placeholderView: {
-    width: 50,
+    width: 44,
   },
   scrollContent: {
     padding: 24,
@@ -357,14 +361,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
-    gap: 8,
+    gap: 10,
   },
   gridItemDefault: {
     borderColor: '#24242B',
     backgroundColor: '#16161A',
-  },
-  bucketIcon: {
-    fontSize: 20,
   },
   bucketName: {
     color: '#FFFFFF',
